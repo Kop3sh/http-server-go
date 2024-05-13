@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
+
 	// Uncomment this block to pass the first stage
 	"net"
 	"os"
@@ -28,7 +30,29 @@ func main() {
 
 	defer conn.Close()
 
-	_, err = conn.Write([]byte("HTTP/1.1 200 OK\r\n\r\n"))
+	// Read the request
+	req := make([]byte, 1024)
+
+	_, err = conn.Read(req)
+	if err != nil {
+		fmt.Println("Error reading request: ", err.Error())
+		os.Exit(1)
+	}
+
+	// log the request
+	fmt.Println(string(req))
+
+	reqLines := bytes.Split(req, []byte("\r\n"))
+	reqWords := bytes.Split(reqLines[0], []byte(" "))
+
+	res := []byte("HTTP/1.1 200 OK\r\n\r\n")
+
+	if !bytes.Equal(reqWords[1], []byte("/")) {
+		res = []byte("HTTP/1.1 404 Not Found\r\n\r\n")
+	}
+
+
+	_, err = conn.Write(res)
 	if err != nil {
 		fmt.Println("Error writing to connection: ", err.Error())
 		os.Exit(1)
