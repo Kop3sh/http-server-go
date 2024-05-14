@@ -3,12 +3,24 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"strconv"
+	"strings"
 
 	// Uncomment this block to pass the first stage
 	"net"
 	"os"
 )
+
+func parseReqHeaders(reqHeaders [][]byte) map[string]string {
+	var headerMap map[string]string = make(map[string]string)
+	for _, l := range reqHeaders {
+		field := bytes.Split(l, []byte(":"))
+		
+		// make sure to lowercase the field name, and to trim field value
+		headerMap[strings.ToLower(string(field[0]))] = strings.TrimSpace(string(field[1]))
+	}
+
+	return headerMap
+}
 
 func main() {
 	// You can use print statements as follows for debugging, they'll be visible when running tests.
@@ -46,34 +58,46 @@ func main() {
 	reqLines := bytes.Split(req, []byte("\r\n"))
 	reqWords := bytes.Split(reqLines[0], []byte(" "))
 	path := bytes.Split(reqWords[1], []byte("/"))
+	reqHeaders := parseReqHeaders(reqLines[1:len(reqLines)-2])
 
-	statusLine := make([]byte, 0)
-	var headers  bytes.Buffer
-	body := make([]byte, 0)
+	var res strings.Builder
+	// var statusLine strings.Builder
+	// var headers strings.Builder
+	// var body strings.Builder
+
+	fmt.Println(reqHeaders, len(reqHeaders))
+	fmt.Printf("%s", path[1])
 
 	if bytes.Equal(path[1], []byte("echo")) && len(path) == 3 {
-		statusLine = append(statusLine, []byte("HTTP/1.1 200 OK\r\n")...)
 
-		headers.Write([]byte("Content-Type: text/plain\r\n"))
-		headers.Write([]byte("Content-Length: "))
-		headers.Write([]byte(strconv.Itoa(len(path[2]))))
-		headers.Write([]byte("\r\n"))
+		res.WriteString("HTTP/1.1 200 OK\r\n")
 
-		body = append(body, path[2]...)
-	} else if bytes.Equal(reqWords[1], []byte("/")) {
-		statusLine = append(statusLine, []byte("HTTP/1.1 200 OK\r\n\r\n")...)
+		res.WriteString("Content-Type: text/plain\r\n")
+		res.WriteString("Content-Length: " + fmt.Sprintf("%d", len(path[2])) + "\r\n\r\n")
+
+		res.WriteString(string(path[2]))
+	} else if bytes.Equal(path[1], []byte("user-agent")) && len(path) == 2 {
+		res.WriteString("HTTP/1.1 200 OK\r\n")
+
+		res.WriteString("Content-Type: text/plain\r\n")
+		res.WriteString("Content-Length: " + fmt.Sprintf("%d", len(reqHeaders["user-agent"])) + "\r\n\r\n")
+
+		res.WriteString(reqHeaders["user-agent"])
+	}else if bytes.Equal(reqWords[1], []byte("/")) {
+		res.WriteString("HTTP/1.1 200 OK\r\n\r\n")
 	} else {
-		statusLine = append(statusLine, []byte("HTTP/1.1 404 Not Found\r\n\r\n")...)
+		res.WriteString("HTTP/1.1 404 Not Found\r\n\r\n")
 	}
 
 
 
 	// bundle status line, headers and body into single response object
-	res := append(statusLine, headers.Bytes()...)
-	res = append(res, []byte("\r\n")...)
-	res = append(res, body...)
+	// var res strings.Builder
+	// res.WriteString(statusLine.String())
+	// res.WriteString(headers.String())
+	// res.WriteString(body.String())
 
-	_, err = conn.Write(res)
+	_, err = conn.Write([]byte(res.String()))
 	if err != nil {
 		fmt.Println("Error writing to connection: ", err.Error())
 		os.Exit(1)
