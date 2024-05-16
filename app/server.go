@@ -72,13 +72,13 @@ func handleConn(conn net.Conn, dir string) {
 
 		res.WriteString("HTTP/1.1 200 OK\r\n")
 
-		res.WriteString("Content-Type: text/plain\r\n")
-		res.WriteString("Content-Length: " + fmt.Sprintf("%d", len(path[2])) + "\r\n\r\n")
-
 		acceptedEncoding := reqHeaders["accept-encoding"]
 		if acceptedEncoding == "gzip" || acceptedEncoding == "brotli" {
 			res.WriteString("Content-Encoding: " + acceptedEncoding + "\r\n")
 		}
+
+		res.WriteString("Content-Type: text/plain\r\n")
+		res.WriteString("Content-Length: " + fmt.Sprintf("%d", len(path[2])) + "\r\n\r\n")
 
 		res.WriteString(string(path[2]))
 	case bytes.Equal(path[1], []byte("user-agent")) && len(path) == 2:
@@ -91,10 +91,7 @@ func handleConn(conn net.Conn, dir string) {
 	case bytes.Equal(method, []byte("GET")) && bytes.Equal(path[1], []byte("files")) && len(path) == 3:
 
 		file := dir + string(path[2])
-		// go search for the file specified in the path[2]
 		_, err = os.Stat(file)
-
-		log.Println()
 		if errors.Is(err, os.ErrNotExist) {
 			responseNotFound(conn)
 		} else if err != nil {
