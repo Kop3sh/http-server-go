@@ -22,28 +22,14 @@ func parseReqHeaders(reqHeaders [][]byte) map[string]string {
 	return headerMap
 }
 
-func main() {
-	// You can use print statements as follows for debugging, they'll be visible when running tests.
-	log.Println("Logs from your program will appear here!")
-
-	// Uncomment this block to pass the first stage
-	//
-	l, err := net.Listen("tcp", "0.0.0.0:4221")
-	if err != nil {
-		log.Fatalln("Failed to bind to port 4221")
-	}
-
-	conn, err := l.Accept()
-	if err != nil {
-		log.Fatalln("Error accepting connection: ", err.Error())
-	}
+func handleConn(conn net.Conn) {
 
 	defer conn.Close()
 
 	// Read the request
 	req := make([]byte, 1024)
 
-	_, err = conn.Read(req)
+	_, err := conn.Read(req)
 	if err != nil {
 		log.Fatalln("Error reading request: ", err.Error())
 	}
@@ -59,7 +45,7 @@ func main() {
 	var res strings.Builder
 
 	log.Println(reqHeaders, len(reqHeaders))
-	log.Printf("%s", path[1])
+	log.Printf("request path: %s", path[1])
 
 	if bytes.Equal(path[1], []byte("echo")) && len(path) == 3 {
 
@@ -92,4 +78,26 @@ func main() {
 	if err != nil {
 		log.Fatalln("Error writing to connection: ", err.Error())
 	}
+}
+
+func main() {
+	// You can use print statements as follows for debugging, they'll be visible when running tests.
+	log.Println("Logs from your program will appear here!")
+
+	// Uncomment this block to pass the first stage
+	//
+	l, err := net.Listen("tcp", "0.0.0.0:4221")
+	if err != nil {
+		log.Fatalln("Failed to bind to port 4221")
+	}
+
+	for {
+		conn, err := l.Accept()
+		if err != nil {
+			log.Fatalln("Error accepting connection: ", err.Error())
+		}
+
+		go handleConn(conn)
+	}
+
 }
