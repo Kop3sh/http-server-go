@@ -2,10 +2,13 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
+	"os"
 	"strings"
 
 	// Uncomment this block to pass the first stage
+	"flag"
 	"log"
 	"net"
 )
@@ -22,7 +25,16 @@ func parseReqHeaders(reqHeaders [][]byte) map[string]string {
 	return headerMap
 }
 
-func handleConn(conn net.Conn) {
+func responseNotFound(conn net.Conn) {
+	res := "HTTP/1.1 404 Not Found\r\n\r\n"
+	_, err := conn.Write([]byte(res))
+	if err != nil {
+		log.Fatalln("Error writing to connection: ", err.Error())
+	}
+
+}
+
+func handleConn(conn net.Conn, dir string) {
 
 	defer conn.Close()
 
@@ -47,7 +59,8 @@ func handleConn(conn net.Conn) {
 	log.Println(reqHeaders, len(reqHeaders))
 	log.Printf("request path: %s", path[1])
 
-	if bytes.Equal(path[1], []byte("echo")) && len(path) == 3 {
+	switch {
+	case bytes.Equal(path[1], []byte("echo")) && len(path) == 3:
 
 		res.WriteString("HTTP/1.1 200 OK\r\n")
 
@@ -55,17 +68,42 @@ func handleConn(conn net.Conn) {
 		res.WriteString("Content-Length: " + fmt.Sprintf("%d", len(path[2])) + "\r\n\r\n")
 
 		res.WriteString(string(path[2]))
-	} else if bytes.Equal(path[1], []byte("user-agent")) && len(path) == 2 {
+	case bytes.Equal(path[1], []byte("user-agent")) && len(path) == 2:
 		res.WriteString("HTTP/1.1 200 OK\r\n")
 
 		res.WriteString("Content-Type: text/plain\r\n")
 		res.WriteString("Content-Length: " + fmt.Sprintf("%d", len(reqHeaders["user-agent"])) + "\r\n\r\n")
 
 		res.WriteString(reqHeaders["user-agent"])
-	} else if bytes.Equal(reqWords[1], []byte("/")) {
+	case bytes.Equal(path[1], []byte("files")) && len(path) == 3:
+
+		file := dir + string(path[2])
+		// go search for the file specified in the path[2]
+		_, err = os.Stat(file)
+
+		log.Println()
+		if errors.Is(err, os.ErrNotExist) {
+			responseNotFound(conn)
+		} else if err != nil {
+			panic(err)
+		}
+
+		dat, err := os.ReadFile(file)
+		if err != nil {
+			panic(err)
+		}
+
+		res.WriteString("HTTP/1.1 200 OK\r\n")
+
+		res.WriteString("Content-Type: application/octet-stream\r\n")
+		res.WriteString("Content-Length: " + fmt.Sprintf("%d", len(dat)) + "\r\n\r\n")
+
+		res.WriteString(string(dat))
+
+	case bytes.Equal(reqWords[1], []byte("/")):
 		res.WriteString("HTTP/1.1 200 OK\r\n\r\n")
-	} else {
-		res.WriteString("HTTP/1.1 404 Not Found\r\n\r\n")
+	default:
+		responseNotFound(conn)
 	}
 
 	// bundle status line, headers and body into single response object
@@ -84,8 +122,13 @@ func main() {
 	// You can use print statements as follows for debugging, they'll be visible when running tests.
 	log.Println("Logs from your program will appear here!")
 
-	// Uncomment this block to pass the first stage
-	//
+	dir := flag.String("directory", "", "Directory to serve files from")
+	flag.Parse()
+
+	if *dir != "" {
+		log.Println("Serving files from directory:", *dir)
+	}
+
 	l, err := net.Listen("tcp", "0.0.0.0:4221")
 	if err != nil {
 		log.Fatalln("Failed to bind to port 4221")
@@ -97,7 +140,7 @@ func main() {
 			log.Fatalln("Error accepting connection: ", err.Error())
 		}
 
-		go handleConn(conn)
+		go handleConn(conn, *dir)
 	}
 
 }
