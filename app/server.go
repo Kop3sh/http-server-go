@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	// Uncomment this block to pass the first stage
@@ -34,6 +35,12 @@ func responseNotFound(conn net.Conn) {
 
 }
 
+func checkErr(e error) {
+	if e != nil {
+		panic(e)
+	}
+}
+
 func handleConn(conn net.Conn, dir string) {
 
 	defer conn.Close()
@@ -51,6 +58,7 @@ func handleConn(conn net.Conn, dir string) {
 
 	reqLines := bytes.Split(req, []byte("\r\n"))
 	reqWords := bytes.Split(reqLines[0], []byte(" "))
+	method := reqWords[0]
 	path := bytes.Split(reqWords[1], []byte("/"))
 	reqHeaders := parseReqHeaders(reqLines[1 : len(reqLines)-2])
 
@@ -75,7 +83,7 @@ func handleConn(conn net.Conn, dir string) {
 		res.WriteString("Content-Length: " + fmt.Sprintf("%d", len(reqHeaders["user-agent"])) + "\r\n\r\n")
 
 		res.WriteString(reqHeaders["user-agent"])
-	case bytes.Equal(path[1], []byte("files")) && len(path) == 3:
+	case bytes.Equal(method, []byte("GET")) && bytes.Equal(path[1], []byte("files")) && len(path) == 3:
 
 		file := dir + string(path[2])
 		// go search for the file specified in the path[2]
@@ -99,6 +107,22 @@ func handleConn(conn net.Conn, dir string) {
 		res.WriteString("Content-Length: " + fmt.Sprintf("%d", len(dat)) + "\r\n\r\n")
 
 		res.WriteString(string(dat))
+	case bytes.Equal(method, []byte("POST")) && bytes.Equal(path[1], []byte("files")) && len(path) == 3:
+		contentLen, err := strconv.Atoi(reqHeaders["content-length"])
+		checkErr(err)
+		reqBody := reqLines[len(reqLines)-1][:contentLen]
+
+		f, err := os.Create(dir + string(path[2]))
+		checkErr(err)
+
+		defer f.Close()
+
+		log.Println(reqBody)
+
+		f.Write(reqBody)
+		f.Sync()
+
+		res.WriteString("HTTP/1.1 201 Created\r\n\r\n")
 
 	case bytes.Equal(reqWords[1], []byte("/")):
 		res.WriteString("HTTP/1.1 200 OK\r\n\r\n")
