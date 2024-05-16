@@ -75,6 +75,11 @@ func handleConn(conn net.Conn, dir string) {
 		res.WriteString("Content-Type: text/plain\r\n")
 		res.WriteString("Content-Length: " + fmt.Sprintf("%d", len(path[2])) + "\r\n\r\n")
 
+		acceptedEncoding := reqHeaders["accept-encoding"]
+		if acceptedEncoding == "gzip" || acceptedEncoding == "brotli" {
+			res.WriteString("Content-Encoding: " + acceptedEncoding + "\r\n")
+		}
+
 		res.WriteString(string(path[2]))
 	case bytes.Equal(path[1], []byte("user-agent")) && len(path) == 2:
 		res.WriteString("HTTP/1.1 200 OK\r\n")
