@@ -8,7 +8,6 @@ import (
 	// Uncomment this block to pass the first stage
 	"log"
 	"net"
-	"os"
 )
 
 func parseReqHeaders(reqHeaders [][]byte) map[string]string {
