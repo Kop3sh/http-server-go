@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"compress/gzip"
 	"errors"
 	"fmt"
 	"os"
@@ -95,15 +96,26 @@ func handleConn(conn net.Conn, dir string) {
 
 		res.WriteString("HTTP/1.1 200 OK\r\n")
 
+		res.WriteString("Content-Type: text/plain\r\n")
 		acceptedEncoding := parseValidEncoding(reqHeaders["accept-encoding"])
 		if acceptedEncoding != nil && len(acceptedEncoding) == 1 {
 			res.WriteString("Content-Encoding: " + acceptedEncoding[0] + "\r\n")
+
+			var b bytes.Buffer
+			gz := gzip.NewWriter(&b)
+			if _, err := gz.Write([]byte(path[2])); err != nil {
+				log.Fatal(err)
+			}
+			if err = gz.Close(); err != nil {
+				log.Fatal(err)
+			}
+			res.WriteString("Content-Length: " + fmt.Sprintf("%d", len(b.String())) + "\r\n\r\n")
+			res.WriteString(b.String())
+		} else {
+			res.WriteString("Content-Length: " + fmt.Sprintf("%d", len(path[2])) + "\r\n\r\n")
+			res.WriteString(string(path[2]))
 		}
 
-		res.WriteString("Content-Type: text/plain\r\n")
-		res.WriteString("Content-Length: " + fmt.Sprintf("%d", len(path[2])) + "\r\n\r\n")
-
-		res.WriteString(string(path[2]))
 	case bytes.Equal(path[1], []byte("user-agent")) && len(path) == 2:
 		res.WriteString("HTTP/1.1 200 OK\r\n")
 
