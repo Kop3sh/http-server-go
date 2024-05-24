@@ -26,6 +26,28 @@ func parseReqHeaders(reqHeaders [][]byte) map[string]string {
 	return headerMap
 }
 
+func parseValidEncoding(header string) []string {
+	// parse the accept-encoding header and return a slice of valid encodings
+	// valid encodings are gzip and brotli
+	// if the header is empty, return an empty slice
+	// if the header contains an invalid encoding, ignore it
+	// if the header contains a valid encoding multiple times, return it only once
+
+	encodings := strings.Split(header, ",")
+	encodingSet := map[string]bool{}
+	var validEncodings []string
+	for i, encoding := range encodings {
+		encodings[i] = strings.TrimSpace(encoding)
+		if encodings[i] == "gzip" || encodings[i] == "brotli" {
+			encodingSet[encodings[i]] = true
+		}
+	}
+	for encoding := range encodingSet {
+		validEncodings = append(validEncodings, encoding)
+	}
+	return validEncodings
+}
+
 func responseNotFound(conn net.Conn) {
 	res := "HTTP/1.1 404 Not Found\r\n\r\n"
 	_, err := conn.Write([]byte(res))
@@ -65,6 +87,7 @@ func handleConn(conn net.Conn, dir string) {
 	var res strings.Builder
 
 	log.Println(reqHeaders, len(reqHeaders))
+	log.Println(parseValidEncoding(reqHeaders["accept-encoding"]), len(parseValidEncoding(reqHeaders["accept-encoding"])))
 	log.Printf("request path: %s", path[1])
 
 	switch {
@@ -72,9 +95,9 @@ func handleConn(conn net.Conn, dir string) {
 
 		res.WriteString("HTTP/1.1 200 OK\r\n")
 
-		acceptedEncoding := reqHeaders["accept-encoding"]
-		if acceptedEncoding == "gzip" || acceptedEncoding == "brotli" {
-			res.WriteString("Content-Encoding: " + acceptedEncoding + "\r\n")
+		acceptedEncoding := parseValidEncoding(reqHeaders["accept-encoding"])
+		if acceptedEncoding != nil && len(acceptedEncoding) == 1 {
+			res.WriteString("Content-Encoding: " + acceptedEncoding[0] + "\r\n")
 		}
 
 		res.WriteString("Content-Type: text/plain\r\n")
